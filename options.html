@@ -1,0 +1,10 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ChannelCleaner — настройки бота</title>
+<style>body{font:16px system-ui,Arial;max-width:650px;margin:2rem auto;padding:0 1rem;line-height:1.5}label{display:block;margin:1rem 0 0.5rem}input{display:block;width:100%;padding:11px;font-size:17px;box-sizing:border-box}button{padding:12px;border:0;background:#226a9b;color:white;border-radius:8px;font-size:16px;margin-top:1rem}small{color:#555}#status{margin-top:1rem}li{margin-bottom:0.35rem}</style></head>
+<body><h1>ChannelCleaner</h1><p>Настройка собственного Telegram-бота для <strong>автоматического исключения подписчиков</strong> и отправки CSV. API ID и API Hash не нужны.</p>
+<ol><li>Создай бота в @BotFather, скопируй токен.</li><li>Нажми Start в личном чате с созданным ботом.</li><li>Добавь этого бота администратором нужных каналов с правом блокировать участников.</li><li>Если хочешь CSV в личные сообщения бота, узнай свой числовой Telegram ID через @userinfobot и нажми Start у своего бота.</li></ol>
+<form id="settings"><label for="token">Токен BotFather</label><input id="token" type="password" autocomplete="off" placeholder="123456:ABC..." required>
+<label for="owner">Мой числовой Telegram ID</label><input id="owner" type="text" inputmode="numeric" autocomplete="off" placeholder="123456789" required>
+<button type="submit">Сохранить локально</button> <button type="button" id="erase" style="background:#656565">Удалить ключи</button></form>
+<p id="status" role="status" aria-live="polite"></p>
+<small>Ключ хранится только в закрытом хранилище расширения на устройстве; на серверы разработчика данные не отправляются. Запросы на удаление идут напрямую в Bot API Telegram только после двух подтверждений конкретного канала и запуска кнопкой «Автоматически удалить». Бот проверяет членство перед исключением и после него. Ни пароли, ни коды входа в Telegram не нужны.</small>
+<script src="options.js"></script></body></html>

@@ -1,0 +1,20 @@
+name: Static and unit checks (mock only)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          for f in scanner.js profiles.js content.js background.js options.js; do node --check "$f"; done
+      - name: JavaScript tests (simulated Telegram data)
+        run: |
+          for t in tests/test_*.js; do node "$t"; done

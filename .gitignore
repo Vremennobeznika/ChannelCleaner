@@ -1,0 +1,22 @@
+# Local configuration and sensitive data
+.env
+.env.*
+*.session
+*.session-journal
+**/secrets.json
+**/config.local.json
+**/*token*.txt
+*.log
+
+# Test and build artifacts
+__pycache__/
+*.py[cod]
+node_modules/
+.venv/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+.DS_Store
+Thumbs.db
