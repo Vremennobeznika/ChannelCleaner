@@ -211,13 +211,17 @@
       return {count:0,hits:0,blocked:true};
     }
     const els = scanElements(context.root);
-    let count = 0;
+    let count = 0, updated = 0;
     for (const {el, status} of els) {
       const row = chooseRow(el, context.root);
       if (!row || !P.isLongAgo(status)) continue;
       const candidate = candidateFrom(row, status);
       if (!candidate) continue;
-      if(rows.has(candidate.key)) { const saved=rows.get(candidate.key); if(!saved.removed) rows.set(candidate.key,{...candidate}); continue; }
+      if(rows.has(candidate.key)) {
+        const saved=rows.get(candidate.key);
+        if(!saved.removed) { rows.set(candidate.key,P.preserveReviewFlag(saved,candidate)); updated++; }
+        continue;
+      }
       if (rows.size >= MAX_GROUPS) {
         show('Достигнут лимит записей. Скачай CSV.');
         return {count,hits:els.length,blocked:true};
@@ -225,7 +229,7 @@
       rows.set(candidate.key, candidate);
       count++;
     }
-    if (count) { save(); paint(); }
+    if (count || updated) { save(); paint(); }
     return {count, hits:els.length, blocked:false};
   }
   const sleep = ms => new Promise(r=>setTimeout(r, ms));
@@ -259,12 +263,12 @@
       if(!row.isConnected || !el.isConnected || !visible(row) || !acceptedScope || location.href!==scopeLocation ||
          activeProfile()?.id!==profile.id || subscriberContext()?.root!==context.root || activeSubscriberSearch(context) ||
          !P.isLongAgo(el.textContent.trim()) || P.extractUserId(row)!==candidate.userId ||
-         !P.canRemove(candidate)) {run.skipped++;continue;}
+         !P.canRemoveAfterGrace(rows.get(candidate.key),candidate)) {run.skipped++;continue;}
       try {
         const result=await messageWorker({type:'CHANNEL_CLEANER_REMOVE_MEMBER',chatRef:profile.settings.chatRef,userId:candidate.userId});
         if(result.removed){
           run.removed++;
-          candidate.removed=true; rows.set(candidate.key,candidate);save();paint();
+          rows.set(candidate.key,{...P.preserveReviewFlag(rows.get(candidate.key),candidate),removed:true});save();paint();
           await removalLog({userId:candidate.userId,name:candidate.name,time:new Date().toISOString(),chatRef:profile.settings.chatRef,result:'removed'});
         }else{
           run.skipped++;
@@ -293,22 +297,23 @@
       return;
     }
     const scroll = context.scroll;
-    // New full pass must not silently mix stale observations from previous days.
-    if (rows.size && !confirm('Начать новый полный обход? Старые локальные записи для этого канала будут заменены. Если они нужны, сначала скачай CSV.')) {
-      show('Проверка отменена. Старые записи сохранены.'); return;
+    // Preserve prior flagged observations. Every deletion is evaluated only
+    // against a fresh, visible Telegram row from THIS pass.
+    if (rows.size && !confirm('Обновить результаты обхода? Предыдущие записи и даты отметок сохранятся для повторной проверки через 30 суток.')) {
+      show('Проверка отменена. Предыдущие записи сохранены.'); return;
     }
     const profile=activeProfile();
     if(withRemoval){
       if(chatEl.value.trim()!==profile.settings.chatRef){show('Сохрани адрес канала перед удалением.');return;}
       if(!profile.settings.chatRef){show('Укажи @username или -100… ID выбранного канала и сохрани настройки.');return;}
       // Explicit, destructive-action confirmation. Never infer the channel from names.
-      if(!confirm('АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ из '+profile.settings.chatRef+'\n\nУдалить до '+profile.settings.maxRemovals+' участников со статусом «был давно» и числовым ID, если бот подтверждает членство?\n\nЭто НЕ доказывает, что человек не читает канал: статус бывает и при блокировке администратора. Продолжить?'))return;
+      if(!confirm('АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ из '+profile.settings.chatRef+'\n\nТолько явно отмеченные участники с числовым ID, если с отметки прошло минимум 30 суток и статус повторно подтверждён в текущем обходе. Лимит: '+profile.settings.maxRemovals+'.\n\n«Был давно» НЕ доказывает неактивность в канале. Продолжить?'))return;
       try{
         const result=await messageWorker({type:'CHANNEL_CLEANER_CHECK_CHANNEL',chatRef:profile.settings.chatRef});
         if(!confirm('Telegram подтвердил канал «'+result.title+'» ('+result.chatId+').\nОткрытый список подписчиков относится именно к нему? Выполнить исключение?')) return;
       }catch(e){show('Бот не готов удалять: '+String(e.message||e));return;}
     }
-    rows.clear(); save(); paint();
+    // Keep the per-profile flaggedAt history: clearing it here bypassed the grace period.
     run.active = true; run.stop = false;run.removed=0;run.skipped=0; paint();
     let same = 0, pages = 0;
     const processed=new Set();
@@ -354,7 +359,7 @@
   }
   function paint() {
     if (!resultEl || !listEl) return;
-    resultEl.textContent = 'Кандидатов: '+rows.size+' · с ID: '+[...rows.values()].filter(x=>x.userId).length+' · удалено: '+run.removed+(run.active?' · идёт обход':'');
+    resultEl.textContent = 'Кандидатов: '+rows.size+' · с ID: '+[...rows.values()].filter(x=>x.userId).length+' · отмечено: '+[...rows.values()].filter(x=>x.userId&&x.flaggedAt).length+' · удалено: '+run.removed+(run.active?' · идёт обход':'');
     listEl.replaceChildren();
     const data = Array.from(rows.values());
     if(profileEl) profileEl.disabled=run.active;
@@ -362,7 +367,24 @@
     for (const item of data.slice(-80).reverse()) {
       const li = document.createElement('div');
       li.className = 'cc-record';
-      li.textContent = item.name + (item.userId?' · ID '+item.userId:' · ID не найден') + ' · ' + item.status + (item.removed?' · УДАЛЁН':'');
+      li.textContent = item.name + (item.userId?' · ID '+item.userId:' · ID не найден') + ' · ' + item.status +
+        (item.flaggedAt?' · отмечен '+item.flaggedAt.slice(0,10)+' (не ранее '+new Date(Date.parse(item.flaggedAt)+P.GRACE_MS).toISOString().slice(0,10)+')':'') +
+        (item.removed?' · УДАЛЁН':'');
+      if (item.userId && !item.removed) {
+        const flag=document.createElement('button');
+        flag.type='button';
+        flag.textContent=item.flaggedAt?'Снять отметку':'Отметить на повторную проверку';
+        flag.disabled=run.active;
+        flag.setAttribute('aria-label',(item.flaggedAt?'Снять отметку: ':'Отметить на повторную проверку: ')+item.name);
+        flag.addEventListener('click',()=>{
+          if(run.active) return;
+          const current=rows.get(item.key);
+          if(!current || current.userId!==item.userId) return;
+          rows.set(item.key,{...current,flaggedAt:current.flaggedAt?'':new Date().toISOString()});
+          save();paint();
+        });
+        li.appendChild(flag);
+      }
       listEl.appendChild(li);
     }
   }
@@ -385,7 +407,7 @@
 #channel-cleaner-overlay label.channel-label{display:grid;gap:4px}
 #channel-cleaner-overlay .help{font-size:12px;line-height:1.35;color:#c3d3df}
 #channel-cleaner-overlay .warning{font-size:12px;line-height:1.35;border-left:3px solid #eda94e;padding:5px 9px}
-#channel-cleaner-overlay .records{display:grid;gap:2px;max-height:85px;overflow-y:auto;font-size:12px;color:#d9e8f0}
+#channel-cleaner-overlay .records{display:grid;gap:5px;max-height:160px;overflow-y:auto;font-size:12px;color:#d9e8f0}
 #channel-cleaner-overlay .cc-record{padding:4px;border-bottom:1px solid #334a5b}
 #channel-cleaner-overlay.closed .wrap{display:none}
 </style>
@@ -404,7 +426,7 @@
   <div id="cc-count" role="status" aria-live="polite">Разных имён: 0</div>
   <div id="cc-message" class="help" aria-live="polite">Проверка и удаление запускаются из этой панели; браузер должен оставаться открытым.</div>
   <div id="cc-list" class="records"></div>
-  <div class="warning">Удаление только при наличии уникального числового Telegram ID в строке и подтверждённом статусе обычного подписчика через Bot API. «Был давно» также означает блокировку администратора. Браузер должен оставаться открытым; автоматический режим запускается вручную.</div>
+  <div class="warning">После обнаружения ID отметь участника кнопкой под записью. Только через 30 суток при повторном обнаружении того же ID и статуса возможна очистка. «Был давно» НЕ подтверждает отсутствие именно в канале, возможна блокировка наблюдателя. Браузер должен быть открыт.</div>
 </div>`;
     document.documentElement.appendChild(panel);
     statusEl = panel.querySelector('#cc-message');
