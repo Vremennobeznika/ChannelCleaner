@@ -1,5 +1,6 @@
 """Local UI test: fake bot and fake Telegram subscriber list. NO real Telegram side effects."""
 from pathlib import Path
+from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parents[1]
 
@@ -35,7 +36,7 @@ with sync_playwright() as p:
     for uid in ('123456789','123456790'):
         page.locator('#cc-list .cc-record').filter(has_text='ID '+uid).locator('button').click()
     assert page.locator('#cc-count').inner_text().find('отмечено: 2') >= 0
-    page.clock.fast_forward(31*24*3600*1000)
+    page.clock.set_fixed_time(datetime.now(timezone.utc) + timedelta(days=31))
     page.locator('#cc-remove-auto').click()
     page.wait_for_function('document.querySelector("#cc-message").textContent.includes("Лимит достигнут")',timeout=15000)
     requests=page.evaluate('window.__requests')
