@@ -9,7 +9,7 @@ def html_for(n):
     return f'<html><head><meta charset="utf-8"></head><body><main><h2>Подписчики</h2><div id="s" style="overflow-y:auto;height:200px;width:380px">{body}</div></main></body></html>'
 
 with sync_playwright() as p:
-    browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+    browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
     page=browser.new_page(viewport={'width':1000,'height':800})
     for n in (100,1000,3000):
         page.set_content(html_for(n))
