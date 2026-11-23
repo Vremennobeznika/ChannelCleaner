@@ -10,6 +10,7 @@ on:
       - 'options.html'
       - 'manifest.json'
       - 'README.md'
+      - 'tests/**'
       - '.github/workflows/extension-package.yml'
   workflow_dispatch:
 
