@@ -26,7 +26,7 @@ assert.equal(P.makeCandidate('','был давно',''),null);
 let csv=P.toCSV([{name:'=HYPERLINK("x")',status:'был давно',capturedAt:'2026-11-20T10:00:00Z'}]);
 assert(csv.startsWith('\ufeff'));
 assert(csv.includes('"\'=HYPERLINK(""x"")"'));
-assert(csv.includes('Давно = больше месяца'));
+assert(csv.includes('не доказательство отсутствия в канале'));
 assert(P.toCSV([{name:'Нина',status:'был давно',capturedAt:'2026-11-20'}], '=HYPERLINK("evil")').includes("'"+'=HYPERLINK'));
 assert.equal(P.makeCandidate('Маша','был(а) давно','Маша\nАдминистратор'),null);
 assert(csv.endsWith('\r\n'));
