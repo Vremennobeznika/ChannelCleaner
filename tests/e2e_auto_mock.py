@@ -1,5 +1,6 @@
 """Local UI test: fake bot and fake Telegram subscriber list. NO real Telegram side effects."""
 from pathlib import Path
+from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parents[1]
 
@@ -22,10 +23,20 @@ def page_setup(page, ids):
     page.wait_for_function('document.querySelector("#cc-message").textContent.includes("Запускай")')
 
 with sync_playwright() as p:
-    browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+    browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
     page=browser.new_page(viewport={'width':920,'height':720})
     page.on('dialog',lambda dialog:dialog.accept())
+    page.clock.install()
     page_setup(page,['123456789','123456790','123456791','123456792'])
+    # A removal attempt without an explicit flag must not call Telegram Bot API.
+    page.locator('#cc-remove-auto').click()
+    page.wait_for_function('!document.querySelector("#cc-count").textContent.includes("идёт обход")',timeout=15000)
+    assert not [x for x in page.evaluate('window.__requests') if x['type']=='CHANNEL_CLEANER_REMOVE_MEMBER']
+    # Mark only two numeric IDs; review flags must persist and only mature after 30 days.
+    for uid in ('123456789','123456790'):
+        page.locator('#cc-list .cc-record').filter(has_text='ID '+uid).locator('button').click()
+    assert page.locator('#cc-count').inner_text().find('отмечено: 2') >= 0
+    page.clock.set_fixed_time(datetime.now(timezone.utc) + timedelta(days=31))
     page.locator('#cc-remove-auto').click()
     page.wait_for_function('document.querySelector("#cc-message").textContent.includes("Лимит достигнут")',timeout=15000)
     requests=page.evaluate('window.__requests')
@@ -44,4 +55,4 @@ with sync_playwright() as p:
     assert not [x for x in requests if x['type']=='CHANNEL_CLEANER_REMOVE_MEMBER']
     assert 'с ID: 0' in second.locator('#cc-count').inner_text()
     browser.close()
-print('E2E auto mock PASS: 2 confirmed removals max, correct chat, no-ID zero removals, simulated Bot API')
+print('E2E auto mock PASS: no unflagged removal, 30-day review, 2 confirmed removals max, no-ID zero removals, simulated Bot API')

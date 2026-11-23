@@ -45,7 +45,7 @@ def accept(page):
     page.wait_for_function('document.querySelector("#cc-message").textContent.includes("Запускай проверку")')
 
 with sync_playwright() as p:
-    browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+    browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
     page=browser.new_page(viewport={'width':900,'height':700},accept_downloads=True)
     page.on('dialog',lambda d:d.accept())
     statuses=['был(а) недавно' if i<10 else 'был(а) давно' for i in range(20)]

@@ -13,7 +13,7 @@ for i in range(16):
     html+=f'<div class="row"><span class="name">Тест {i}</span><span class="status">{"был давно" if i%2 else "был недавно"}</span></div>'
 html+='</div></main></body></html>'
 with tempfile.TemporaryDirectory() as td, sync_playwright() as p:
-    context=p.chromium.launch_persistent_context(td,headless=True,executable_path='/usr/bin/chromium',
+    context=p.chromium.launch_persistent_context(td,headless=True,channel='chromium',
         args=['--no-sandbox',f'--disable-extensions-except={base}',f'--load-extension={base}'],
         viewport={'width':1024,'height':700})
     workers=context.service_workers

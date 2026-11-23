@@ -49,7 +49,13 @@
       const key=userId ? 'uid:'+userId : normalized(name);
       if (seen.has(key)) continue;
       seen.add(key);
-      results.push({key,name,status:r.status.trim(),capturedAt:String(r.capturedAt||'').slice(0,40),evidence:'Виден статус в интерфейсе',identityVerified:false,userId});
+      // Keep review flags only for validated numeric IDs, never name-only matches.
+      const flagTime=userId ? Date.parse(r.flaggedAt||'') : NaN;
+      const flaggedAt=Number.isFinite(flagTime) && flagTime <= Date.now()
+        ? new Date(flagTime).toISOString() : '';
+      results.push({key,name,status:r.status.trim(),capturedAt:String(r.capturedAt||'').slice(0,40),
+        evidence:'Виден статус в интерфейсе',identityVerified:false,userId,
+        flaggedAt,removed:Boolean(r.removed)});
     }
     return results;
   }
