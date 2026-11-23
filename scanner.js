@@ -43,6 +43,25 @@
     const t=Date.parse(candidate.capturedAt||'');
     return Number.isFinite(t) && t<=now && now-t <=maxAgeMs;
   }
+  // "Last seen a long time ago" is a Telegram-wide, privacy-dependent indicator,
+  // NOT evidence that a user has stopped reading a particular channel.
+  // Consequently, automatic removal requires an explicit local flag and a
+  // second, fresh observation at least 30 days later for the SAME numeric ID.
+  const GRACE_MS = 30 * 24 * 60 * 60 * 1000;
+  function canRemoveAfterGrace(saved, observed, now=Date.now()) {
+    if (!canRemove(observed, now) || !saved || saved.removed) return false;
+    if (String(saved.userId||'') !== String(observed.userId||'')) return false;
+    const t=Date.parse(saved.flaggedAt||'');
+    return Number.isFinite(t) && t <= now && (now - t) >= GRACE_MS;
+  }
+  function preserveReviewFlag(previous, observation) {
+    if (!previous || String(previous.userId||'') !== String(observation.userId||'') ||
+        !observation.userId) return observation;
+    const flaggedAt=Date.parse(previous.flaggedAt||'');
+    return {...observation,
+      flaggedAt:Number.isFinite(flaggedAt) ? new Date(flaggedAt).toISOString() : '',
+      removed:Boolean(previous.removed)};
+  }
   function csvCell(value) {
     let s = String(value ?? '');
     // Prevent spreadsheet formula evaluation (incl. leading Unicode whitespace).
@@ -50,11 +69,11 @@
     return '"' + s.replace(/"/g, '""') + '"';
   }
   function toCSV(candidates, channel = "") {
-    const header = ['Канал (указан вручную)', 'Имя', 'Telegram ID (если найден)', 'Видимый статус', 'Время фиксации (UTC)', 'Удалён?', 'Примечание'];
-    const rows = candidates.map(x => [channel,x.name,x.userId||'',x.status,x.capturedAt,x.removed?'да':'нет','Давно = больше месяца ИЛИ блокировка администратора; личность по ID только если он есть в разметке Telegram Web.']);
+    const header = ['Канал (указан вручную)', 'Имя', 'Telegram ID (если найден)', 'Видимый статус', 'Время фиксации (UTC)', 'Отметка на повторную проверку (UTC)', 'Повторная проверка не ранее (UTC)', 'Удалён?', 'Примечание'];
+    const rows = candidates.map(x => [channel,x.name,x.userId||'',x.status,x.capturedAt,x.flaggedAt||'', x.flaggedAt && Number.isFinite(Date.parse(x.flaggedAt)) ? new Date(Date.parse(x.flaggedAt)+GRACE_MS).toISOString() : '',x.removed?'да':'нет','Статус Telegram — не доказательство отсутствия в канале; удаление только после явной отметки и повторной проверки через 30 суток.']);
     return '\ufeff' + [header,...rows].map(row=>row.map(csvCell).join(';')).join('\r\n') + '\r\n';
   }
-  const api = { normalize, isLongAgo, isActivityStatus, isProtected, makeCandidate, extractUserId, canRemove, csvCell, toCSV };
+  const api = { normalize, isLongAgo, isActivityStatus, isProtected, makeCandidate, extractUserId, canRemove, canRemoveAfterGrace, preserveReviewFlag, GRACE_MS, csvCell, toCSV };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.ChannelCleanerPolicy = api;
 })(typeof window !== 'undefined' ? window : globalThis);
