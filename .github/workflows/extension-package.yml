@@ -1,0 +1,51 @@
+name: Package experimental extension
+on:
+  push:
+    paths:
+      - 'scanner.js'
+      - 'profiles.js'
+      - 'content.js'
+      - 'background.js'
+      - 'options.js'
+      - 'options.html'
+      - 'manifest.json'
+      - 'README.md'
+      - '.github/workflows/extension-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and mock tests
+        run: |
+          for f in scanner.js profiles.js content.js background.js options.js; do node --check "$f"; done
+          for t in tests/test_*.js; do node "$t"; done
+          python3 tests/e2e_mock.py
+          python3 tests/e2e_auto_mock.py
+          python3 tests/performance_mock.py
+          python3 tests/extension_smoke.py
+      - name: Bundle minimal extension for manual testing
+        run: |
+          zip -9 ChannelCleaner-0.6.0-EXPERIMENTAL.zip \
+            manifest.json scanner.js profiles.js content.js background.js \
+            options.html options.js README.md QA_REPORT.md PUBLISHING.md
+          unzip -t ChannelCleaner-0.6.0-EXPERIMENTAL.zip
+          sha256sum ChannelCleaner-0.6.0-EXPERIMENTAL.zip | tee SHA256.txt
+          echo "TEST-ONLY: Telegram Web/live deletion NOT VERIFIED." >> SHA256.txt
+      - name: Upload test package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChannelCleaner-0.6.0-EXPERIMENTAL
+          path: |
+            ChannelCleaner-0.6.0-EXPERIMENTAL.zip
+            SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
