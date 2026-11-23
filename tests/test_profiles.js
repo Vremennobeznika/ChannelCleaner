@@ -35,4 +35,11 @@ assert.equal(Object.keys(again.records).length,0);
 const existing=M.readProfiles([p1,p1,p2,{id:'bad',label:'bad'}]);
 assert.equal(existing.length,2);
 assert.equal(M.MAX_PROFILES,100);
-console.log('Profiles unit PASS: validation, settings, isolation, migration, duplicates');
+const flaggedAt=new Date(Date.now()-31*24*3600000).toISOString();
+const persisted=M.sanitizeRows([{name:'Тест',status:'был давно',userId:'1234567',
+  capturedAt:new Date().toISOString(),flaggedAt,removed:false}]);
+assert.equal(persisted[0].flaggedAt,flaggedAt);
+assert.equal(persisted[0].userId,'1234567');
+assert.equal(M.sanitizeRows([{name:'Тест',status:'был давно',flaggedAt}])[0].flaggedAt,'');
+assert.equal(M.sanitizeRows([{name:'Тест',status:'был давно',userId:'1234567',flaggedAt:'bad-date'}])[0].flaggedAt,'');
+console.log('Profiles unit PASS: validation, settings, isolation, migration, duplicates, review flags');
